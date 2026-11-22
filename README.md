@@ -31,15 +31,15 @@ login is answered for you.
   lets those users run OpenVPN as root with any profile, which can run
   scripts, so it is about as strong as passwordless sudo. OpenVPN's log is in `$XDG_RUNTIME_DIR/openvpn-gui/openvpn.log`.
 - **Updates.** At start and every six hours the app looks at the latest
-  release on GitHub. When it is newer, an **Update to …** button appears at
-  the top: it downloads the release's package for this machine, installs it
-  with `pkexec pacman -U` (asking for your password) and restarts the app. A
-  release without a package for this machine opens its page instead. To
-  release, bump `VERSION` in `openvpn-gui.pro` and `pkgver` in the PKGBUILD,
-  then push a `v…` tag. GitHub Actions attaches the x86_64 package to the
-  release and, when the `AUR_ENABLED` repository variable is `true`, publishes
+  release on GitHub. When it is newer, a button at the top says so and shows
+  how to update: `sudo pacman -Syu` with the repository added.
+- **Releasing.** Bump `VERSION` in `openvpn-gui.pro` and `pkgver` in
+  `pkgbuild/PKGBUILD`, then push a `v…` tag. GitHub Actions attaches the
+  x86_64 package to the release and signs it into the pacman repository (the
+  `repo-x86_64` pre-release) with the `PACMAN_GPG_PRIVATE_KEY` secret. When
+  the `AUR_ENABLED` repository variable is `true`, it also publishes
   `aur/PKGBUILD` with the new version to the AUR, using the
-  `AUR_SSH_PRIVATE_KEY` repository secret.
+  `AUR_SSH_PRIVATE_KEY` secret.
 - **The bar.** Closing the window keeps the app in the Omarchy bar. Click
   the icon to bring the window back; its menu connects a profile,
   disconnects, or quits. Quitting switches the tunnel off. Launching the app
@@ -69,10 +69,25 @@ Arch Linux (Omarchy) with:
 
 ## Install
 
-On x86_64, from the latest release (the app then offers its own updates):
+On x86_64, from the project's signed pacman repository, so `pacman -Syu`
+keeps it up to date. Trust the signing key once:
 
 ```sh
-sudo pacman -U https://github.com/Tsunami43/openvpn-gui/releases/download/v0.3.0/openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst
+curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/pkgbuild/openvpn-gui.asc | sudo pacman-key --add -
+sudo pacman-key --lsign-key 69B2A58A0FC6BAF7A541DAD2CD1A2C3155059EFD
+```
+
+add the repository to the end of `/etc/pacman.conf`:
+
+```ini
+[openvpn-gui]
+Server = https://github.com/Tsunami43/openvpn-gui/releases/download/repo-$arch
+```
+
+and install:
+
+```sh
+sudo pacman -Syu openvpn-gui
 ```
 
 Or from source:

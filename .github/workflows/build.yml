@@ -53,6 +53,32 @@ jobs:
             || gh release create "$TAG" --title "OpenVPN GUI ${TAG#v}" --generate-notes
           gh release upload "$TAG" pkgbuild/*.pkg.tar.* --clobber
 
+      # The signed pacman repository lives in the repo-x86_64 pre-release
+      # (a pre-release, so the app's update check never takes it for a
+      # version). Uploading replaces the database, then packages no longer in
+      # it are removed.
+      - name: Publish to the pacman repository
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACMAN_GPG_PRIVATE_KEY: ${{ secrets.PACMAN_GPG_PRIVATE_KEY }}
+          GPG_KEY: 69B2A58A0FC6BAF7A541DAD2CD1A2C3155059EFD
+          GH_REPO: ${{ github.repository }}
+          REPO: repo-x86_64
+        run: |
+          printf '%s\n' "$PACMAN_GPG_PRIVATE_KEY" | gpg --batch --import
+          bin/repo /repo pkgbuild/*.pkg.tar.zst
+          gh release view "$REPO" >/dev/null 2>&1 \
+            || gh release create "$REPO" --prerelease --target main \
+                 --title "pacman repository (x86_64)" \
+                 --notes "The signed pacman repository for OpenVPN GUI. See the README for how to add it."
+          cd /repo
+          gh release upload "$REPO" openvpn-gui.db openvpn-gui.db.sig openvpn-gui.files openvpn-gui.files.sig \
+            *.pkg.tar.zst *.pkg.tar.zst.sig --clobber
+          gh release view "$REPO" --json assets -q '.assets[].name' | while read -r asset; do
+            [ -e "$asset" ] || gh release delete-asset "$REPO" "$asset" --yes
+          done
+
   # Publishes the release to the AUR as openvpn-gui, built from the tag's
   # source. Runs only when the AUR_ENABLED repository variable is "true", and
   # needs the AUR_SSH_PRIVATE_KEY secret, whose public half is on the

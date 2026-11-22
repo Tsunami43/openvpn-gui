@@ -1,0 +1,33 @@
+#!/bin/sh
+# Builds the signed pacman repository for one architecture from the packages
+# given, into OUT_DIR: each package with its .sig, and openvpn-gui.db and
+# openvpn-gui.files (plain files, not symlinks, so they can be release
+# assets) with their signatures. GPG_KEY is the signing key's fingerprint; the
+# key must already be in the keyring.
+#
+#   GPG_KEY=<fingerprint> bin/repo OUT_DIR PACKAGE...
+set -eu
+
+: "${GPG_KEY:?GPG_KEY must name the signing key}"
+out="$1"
+shift
+mkdir -p "$out"
+
+names=""
+for package in "$@"; do
+  cp "$package" "$out/"
+  name="$(basename "$package")"
+  names="$names $name"
+  gpg --batch --yes --detach-sign --no-armor --local-user "$GPG_KEY" \
+    --output "$out/$name.sig" "$out/$name"
+done
+
+cd "$out"
+rm -f openvpn-gui.db* openvpn-gui.files*
+# shellcheck disable=SC2086 # package names have no spaces
+repo-add --sign --key "$GPG_KEY" openvpn-gui.db.tar.gz $names
+for kind in db files; do
+  rm -f "openvpn-gui.$kind" "openvpn-gui.$kind.sig"
+  cp "openvpn-gui.$kind.tar.gz" "openvpn-gui.$kind"
+  cp "openvpn-gui.$kind.tar.gz.sig" "openvpn-gui.$kind.sig"
+done
