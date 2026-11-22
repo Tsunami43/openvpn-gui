@@ -90,13 +90,25 @@ KEY
       | sudo tee -a "$PACMAN_CONF" >/dev/null
   fi
 
-  say "Installing OpenVPN GUI"
+  # The package straight from the repository, signature checked, rather than
+  # pacman -Syu: that would upgrade the whole system (which Omarchy, for one,
+  # only allows through omarchy update). Later updates come with the system's.
+  arch=$(uname -m)
+  repo="$REPO_URL/releases/download/repo-$arch"
+  file=$(curl -fsSL "$repo/openvpn-gui.db" | tar -xzO --wildcards '*/desc' \
+    | awk '/^%FILENAME%$/ { getline; print; exit }')
+  [ -n "$file" ] || fail "Could not read the openvpn-gui repository."
+  say "Installing OpenVPN GUI $(echo "$file" | sed 's/^openvpn-gui-\(.*\)-[^-]*-[^-]*\.pkg\..*/\1/')"
   if has_terminal; then
-    sudo pacman -Syu --needed openvpn-gui </dev/tty
+    sudo pacman -U --needed "$repo/$file" </dev/tty
   else
-    sudo pacman -Syu --needed --noconfirm openvpn-gui
+    sudo pacman -U --needed --noconfirm "$repo/$file"
   fi
-  say "Done. OpenVPN GUI is in the app launcher; pacman -Syu keeps it up to date."
+  if command -v omarchy-update >/dev/null 2>&1; then
+    say "Done. OpenVPN GUI is in the app launcher; omarchy update keeps it up to date."
+  else
+    say "Done. OpenVPN GUI is in the app launcher; pacman -Syu keeps it up to date."
+  fi
 }
 
 main "$@"

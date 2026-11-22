@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStandardPaths>
 
 namespace {
 QList<int> parts(QString version) {
@@ -67,6 +68,10 @@ void Updater::releaseFetched(QNetworkReply *reply) {
     m_pageUrl = QUrl(release.value("html_url").toString());
     m_latest = tag.mid(1);
     emit changed();
+}
+
+QString Updater::updateCommand() const {
+    return QStandardPaths::findExecutable("omarchy-update").isEmpty() ? "sudo pacman -Syu" : "omarchy update";
 }
 
 void Updater::openReleasePage() const {

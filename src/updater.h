@@ -15,6 +15,9 @@ class Updater : public QObject {
     Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY changed)
     Q_PROPERTY(bool available READ available NOTIFY changed)
+    // How this system updates: omarchy update where Omarchy guards pacman,
+    // else sudo pacman -Syu.
+    Q_PROPERTY(QString updateCommand READ updateCommand CONSTANT)
 
 public:
     struct Options {
@@ -30,6 +33,7 @@ public:
     QString latestVersion() const { return m_latest; }
     bool available() const { return !m_latest.isEmpty() && isNewer(m_latest, m_current); }
     QUrl releasePage() const { return m_pageUrl; }
+    QString updateCommand() const;
 
     Q_INVOKABLE void check();
     Q_INVOKABLE void openReleasePage() const;

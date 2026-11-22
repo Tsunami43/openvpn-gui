@@ -563,7 +563,7 @@ ApplicationWindow {
                     id: command
                     anchors.fill: parent
                     anchors.margins: 8
-                    text: "sudo pacman -Syu"
+                    text: updater.updateCommand
                     readOnly: true
                     selectByMouse: true
                     font.family: "monospace"
