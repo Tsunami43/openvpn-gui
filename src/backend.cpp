@@ -29,6 +29,10 @@ Backend::Backend(const Paths &paths, SecretStore *secrets, FilePicker *picker, Q
         m_runtimeDir = base + "/openvpn-gui";
     }
     m_openvpn = paths.openvpn.isEmpty() ? QStandardPaths::findExecutable("openvpn") : paths.openvpn;
+    // The real path (/usr/bin/openvpn, not /usr/sbin/openvpn through a link),
+    // so the polkit rule the package installs recognises it.
+    if (const QString real = QFileInfo(m_openvpn).canonicalFilePath(); !real.isEmpty())
+        m_openvpn = real;
     m_pkexec = paths.pkexec.isEmpty() ? QStandardPaths::findExecutable("pkexec") : paths.pkexec;
 
     m_selectedId = m_settings->value("selected").toString();

@@ -24,8 +24,19 @@ login is answered for you.
   app asks again and can remember the new one.
 - **OpenVPN** runs as root, started once through `pkexec` with a management
   socket in `$XDG_RUNTIME_DIR/openvpn-gui`. The state, traffic, login and
-  switching off all go over that socket, so only switching on asks for your
-  password. OpenVPN's log is in `$XDG_RUNTIME_DIR/openvpn-gui/openvpn.log`.
+  switching off all go over that socket. The package installs a polkit rule
+  (`/usr/share/polkit-1/rules.d/49-openvpn-gui.rules`) that lets members of
+  `wheel` at an active local session start `/usr/bin/openvpn` without a
+  password; everyone else is asked for it when switching on. Note that this
+  lets those users run OpenVPN as root with any profile, which can run
+  scripts, so it is about as strong as passwordless sudo. OpenVPN's log is in `$XDG_RUNTIME_DIR/openvpn-gui/openvpn.log`.
+- **Updates.** At start and every six hours the app looks at the latest
+  release on GitHub. When it is newer, an **Update to …** button appears at
+  the top: it downloads the release's package for this machine, installs it
+  with `pkexec pacman -U` (asking for your password) and restarts the app. A
+  release without a package for this machine opens its page instead. To
+  release, bump `VERSION` in `openvpn-gui.pro` and `pkgver` in the PKGBUILD,
+  then push a `v…` tag.
 - **The bar.** Closing the window keeps the app in the Omarchy bar. Click
   the icon to bring the window back; its menu connects a profile,
   disconnects, or quits. Quitting switches the tunnel off. Launching the app
