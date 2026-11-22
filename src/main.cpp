@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QIcon>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -18,13 +19,14 @@
 #include "shell.h"
 #include "theme.h"
 #include "translator.h"
+#include "updater.h"
 
 int main(int argc, char *argv[]) {
     // QApplication rather than QGuiApplication: the icon in the bar
     // (QSystemTrayIcon and its menu) lives in Qt Widgets.
     QApplication app(argc, argv);
     app.setApplicationName("openvpn-gui");
-    app.setApplicationVersion("0.2.0");
+    app.setApplicationVersion(APP_VERSION);
     app.setQuitOnLastWindowClosed(false);
 
     // Matches the window to openvpn-gui.desktop, so the compositor (Wayland
@@ -59,12 +61,26 @@ int main(int argc, char *argv[]) {
     if (!shell.claimInstance((runtime.isEmpty() ? QDir::tempPath() : runtime) + "/openvpn-gui", importPath))
         return 0; // The running instance shows its window instead.
 
+    // An installed update restarts the app once this copy has quit (and
+    // switched the tunnel off), so the new one can claim the instance.
+    Updater updater(APP_VERSION);
+    bool relaunch = false;
+    QObject::connect(&updater, &Updater::installed, &app, [&] {
+        relaunch = true;
+        shell.quit();
+    });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&] {
+        if (relaunch)
+            QProcess::startDetached("/bin/sh", {"-c", "sleep 1; exec /usr/bin/openvpn-gui"});
+    });
+
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
     engine.rootContext()->setContextProperty("translator", &translator);
     engine.rootContext()->setContextProperty("theme", &theme);
     engine.rootContext()->setContextProperty("backend", &backend);
     engine.rootContext()->setContextProperty("shell", &shell);
+    engine.rootContext()->setContextProperty("updater", &updater);
     engine.rootContext()->setContextProperty("initialImport", importPath);
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())

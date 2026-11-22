@@ -3,6 +3,8 @@ QT += core gui widgets qml quick quickcontrols2 dbus network
 CONFIG += c++17 release link_pkgconfig
 PKGCONFIG += libsecret-1
 TARGET = openvpn-gui
+VERSION = 0.2.0
+DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 TEMPLATE = app
 
 HEADERS += \
@@ -13,7 +15,8 @@ HEADERS += \
     src/secretstore.h \
     src/shell.h \
     src/theme.h \
-    src/translator.h
+    src/translator.h \
+    src/updater.h
 
 SOURCES += \
     src/main.cpp \
@@ -23,6 +26,7 @@ SOURCES += \
     src/secretstore.cpp \
     src/shell.cpp \
     src/theme.cpp \
-    src/translator.cpp
+    src/translator.cpp \
+    src/updater.cpp
 
 RESOURCES += src/resources.qrc

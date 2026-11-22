@@ -25,7 +25,7 @@ ApplicationWindow {
     readonly property bool up: backend.status === "connected"
     readonly property bool busy: !idle && !up
     // Keys belong to a dialog while one is open.
-    readonly property bool modal: editor.visible || credentials.visible || confirmDelete.visible || confirmQuit.visible
+    readonly property bool modal: editor.visible || credentials.visible || confirmDelete.visible || confirmQuit.visible || confirmUpdate.visible
     readonly property var selected: {
         backend.profiles // re-read when the list changes
         return backend.profile(backend.selectedId)
@@ -125,7 +125,7 @@ ApplicationWindow {
         enabled: !win.modal
         onActivated: {
             if (win.helpVisible) win.helpVisible = false
-            else if (backend.error !== "") backend.clearError()
+            else if (backend.error !== "" || updater.error !== "") { backend.clearError(); updater.clearError() }
             else if (shell.trayAvailable) shell.hideWindow()
         }
     }
@@ -165,6 +165,25 @@ ApplicationWindow {
                     color: "#ececf1"
                 }
                 Item { Layout.fillWidth: true }
+                // A newer release on GitHub: offered here until it is installed.
+                Button {
+                    visible: updater.available
+                    enabled: updater.state === "idle"
+                    highlighted: true
+                    flat: updater.state !== "idle"
+                    implicitHeight: 34
+                    font.pixelSize: 12
+                    topInset: 2
+                    bottomInset: 2
+                    text: {
+                        translator.language
+                        if (updater.state === "downloading")
+                            return qsTr("Downloading %1%").arg(Math.round(updater.progress * 100))
+                        if (updater.state === "installing") return qsTr("Installing…")
+                        return "↑  " + qsTr("Update to %1").arg(updater.latestVersion)
+                    }
+                    onClicked: confirmUpdate.open()
+                }
                 Rectangle {
                     implicitHeight: 26
                     implicitWidth: pill.implicitWidth + 26
@@ -284,7 +303,7 @@ ApplicationWindow {
             // Something went wrong: say so in the window, with OpenVPN's words.
             Rectangle {
                 Layout.fillWidth: true
-                visible: backend.error !== ""
+                visible: backend.error !== "" || updater.error !== ""
                 implicitHeight: errorRow.implicitHeight + 20
                 radius: theme.radius
                 color: "#24131a"
@@ -301,7 +320,7 @@ ApplicationWindow {
                     Label {
                         Layout.fillWidth: true
                         Layout.maximumHeight: 120
-                        text: backend.error
+                        text: backend.error !== "" ? backend.error : updater.error
                         color: "#ffb4b4"
                         wrapMode: Text.Wrap
                         elide: Text.ElideRight
@@ -310,7 +329,7 @@ ApplicationWindow {
                     ToolButton {
                         Layout.alignment: Qt.AlignTop
                         text: "✕"
-                        onClicked: backend.clearError()
+                        onClicked: backend.error !== "" ? backend.clearError() : updater.clearError()
                     }
                 }
             }
@@ -516,6 +535,35 @@ ApplicationWindow {
             Button { text: qsTr("Disconnect and quit"); highlighted: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
             onAccepted: { confirmQuit.close(); shell.quit() }
             onRejected: confirmQuit.close()
+        }
+    }
+
+    AppDialog {
+        id: confirmUpdate
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 32, 340)
+        modal: true
+        title: qsTr("Update to %1?").arg(updater.latestVersion)
+        // Wrapped text sized against the dialog's own width, so its height
+        // never feeds back into that width.
+        contentWidth: availableWidth
+        contentHeight: updateText.implicitHeight
+        Label {
+            id: updateText
+            width: confirmUpdate.availableWidth
+            text: {
+                translator.language
+                const what = qsTr("The new version is downloaded from GitHub and installed (your password is asked for), then the app restarts.")
+                return win.idle ? what : what + " " + qsTr("The tunnel to %1 will be switched off.").arg(backend.activeName)
+            }
+            wrapMode: Text.WordWrap
+            color: "#a8a8b2"
+        }
+        footer: DialogButtonBox {
+            Button { text: qsTr("Later"); flat: true; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            Button { text: qsTr("Update"); highlighted: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            onAccepted: { confirmUpdate.close(); updater.install() }
+            onRejected: confirmUpdate.close()
         }
     }
 
