@@ -1,0 +1,33 @@
+# Maintainer: Tsunami43 <https://github.com/Tsunami43>
+# pkgver and sha256sums are set from the release tag by the aur job in
+# .github/workflows/build.yml, which publishes this file to the AUR.
+pkgname=openvpn-gui
+pkgver=0.3.0
+pkgrel=1
+pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the Omarchy bar'
+arch=('x86_64' 'aarch64')
+url='https://github.com/Tsunami43/openvpn-gui'
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'xdg-desktop-portal' 'openvpn' 'polkit' 'libsecret')
+makedepends=('pkgconf')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('ed86b9a4ec3ae1f3b7ad5a9a30f28c04b489fbe709a95c0bc022ecc92136afa5')
+
+build() {
+  cd "$pkgname-$pkgver"
+  ./bin/build
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  ./bin/test
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 build/openvpn-gui "$pkgdir/usr/bin/openvpn-gui"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 pkgbuild/openvpn-gui.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/openvpn-gui.svg"
+  install -Dm644 pkgbuild/openvpn-gui.desktop "$pkgdir/usr/share/applications/openvpn-gui.desktop"
+  install -Dm644 pkgbuild/openvpn-gui.rules "$pkgdir/usr/share/polkit-1/rules.d/49-openvpn-gui.rules"
+}

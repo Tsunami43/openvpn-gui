@@ -36,7 +36,9 @@ login is answered for you.
   with `pkexec pacman -U` (asking for your password) and restarts the app. A
   release without a package for this machine opens its page instead. To
   release, bump `VERSION` in `openvpn-gui.pro` and `pkgver` in the PKGBUILD,
-  then push a `v…` tag.
+  then push a `v…` tag. GitHub Actions attaches the x86_64 package to the
+  release and publishes `aur/PKGBUILD` with the new version to the AUR, using
+  the `AUR_SSH_PRIVATE_KEY` repository secret.
 - **The bar.** Closing the window keeps the app in the Omarchy bar. Click
   the icon to bring the window back; its menu connects a profile,
   disconnects, or quits. Quitting switches the tunnel off. Launching the app
@@ -65,6 +67,14 @@ Arch Linux (Omarchy) with:
 - To build: `gcc`, `make`, `pkgconf`
 
 ## Install
+
+From the AUR, with any AUR helper (updates then come with `yay -Syu`):
+
+```sh
+yay -S openvpn-gui
+```
+
+Or from source:
 
 ```sh
 git clone https://github.com/Tsunami43/openvpn-gui.git

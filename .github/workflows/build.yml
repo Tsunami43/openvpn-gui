@@ -52,3 +52,55 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --title "OpenVPN GUI ${TAG#v}" --generate-notes
           gh release upload "$TAG" pkgbuild/*.pkg.tar.* --clobber
+
+  # Publishes the release to the AUR as openvpn-gui, built from the tag's
+  # source. Needs the AUR_SSH_PRIVATE_KEY secret, whose public half is on the
+  # maintainer's AUR account.
+  aur:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git openssh pacman-contrib \
+            qt6-base qt6-declarative qt6-svg qt6-wayland \
+            xdg-desktop-portal openvpn polkit libsecret
+
+      - uses: actions/checkout@v5
+
+      - name: Set the version and build the AUR package
+        run: |
+          useradd -m builder
+          mkdir /aur-build
+          cp aur/PKGBUILD /aur-build/
+          cd /aur-build
+          sed -i "s/^pkgver=.*/pkgver=${TAG#v}/; s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          chown -R builder .
+          su builder -c "updpkgsums && makepkg --printsrcinfo > .SRCINFO && makepkg -f"
+
+      - name: Push to the AUR
+        run: |
+          test -n "$AUR_SSH_PRIVATE_KEY" || { echo "AUR_SSH_PRIVATE_KEY is not set"; exit 1; }
+          install -dm700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes"
+          git config --global user.name "Tsunami43"
+          git config --global user.email "Tsunami43@users.noreply.github.com"
+          git config --global init.defaultBranch master
+          git clone ssh://aur@aur.archlinux.org/openvpn-gui.git /aur-repo
+          cp /aur-build/PKGBUILD /aur-build/.SRCINFO /aur-repo/
+          cd /aur-repo
+          git add PKGBUILD .SRCINFO
+          if git diff --cached --quiet; then
+            echo "The AUR already has this version."
+          else
+            git commit -m "Update to ${TAG#v}"
+            git push origin HEAD:master
+          fi

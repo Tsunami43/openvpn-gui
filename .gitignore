@@ -2,3 +2,6 @@
 /pkgbuild/pkg/
 /pkgbuild/src/
 *.pkg.tar.*
+/aur/*.tar.gz
+/aur/src/
+/aur/pkg/
