@@ -1,7 +1,6 @@
 #include <QSignalSpy>
 #include <QJsonObject>
 #include <QJsonDocument>
-#include <QJsonArray>
 #include <QDir>
 #include <QFile>
 #include <QLocalServer>
@@ -374,52 +373,35 @@ private slots:
         QVERIFY(!Updater::isNewer("v0.1.9", "0.2.0"));
     }
 
-    void offersANewerReleaseAndInstallsIt() {
+    void saysWhenANewerReleaseIsOut() {
         QTemporaryDir dir;
-        auto write = [](const QString &path, const QByteArray &data) {
-            QFile f(path);
-            QVERIFY(f.open(QIODevice::WriteOnly));
-            f.write(data);
+        auto release = [&](const QJsonObject &json) {
+            QFile f(dir.filePath("latest.json"));
+            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            f.write(QJsonDocument(json).toJson());
         };
-        write(dir.filePath("openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst"), "package");
-        const QByteArray release = QJsonDocument(QJsonObject{
-            {"tag_name", "v0.3.0"},
-            {"html_url", "https://example.invalid/release"},
-            {"assets", QJsonArray{
-                QJsonObject{{"name", "openvpn-gui-debug-0.3.0-1-x86_64.pkg.tar.zst"},
-                            {"browser_download_url", "file:///nonexistent"}},
-                QJsonObject{{"name", "openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst"},
-                            {"browser_download_url",
-                             QUrl::fromLocalFile(dir.filePath("openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst")).toString()}}}}}).toJson();
-        write(dir.filePath("latest.json"), release);
-        // A fake pkexec records what it was asked to run and succeeds.
-        const QString pkexec = dir.filePath("pkexec");
-        write(pkexec, "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + dir.filePath("args").toUtf8() + "'\nexit 0\n");
-        QFile::setPermissions(pkexec, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
-
         Updater::Options o;
         o.releaseApi = QUrl::fromLocalFile(dir.filePath("latest.json"));
-        o.downloadDir = dir.filePath("update");
-        o.pkexec = pkexec;
-        o.pacman = "/usr/bin/pacman";
-        o.arch = "x86_64";
         o.checkEveryMs = 0;
         Updater updater("0.2.0", o);
+        QSignalSpy changed(&updater, &Updater::changed);
+
+        release({{"tag_name", "v0.2.0"}, {"html_url", "https://example.invalid/0.2.0"}});
+        updater.check();
+        QTRY_COMPARE(changed.count(), 1);
         QVERIFY(!updater.available());
+
+        // The pacman repository's rolling release is not a version.
+        release({{"tag_name", "repo-x86_64"}, {"prerelease", true}});
+        updater.check();
+        QTest::qWait(50);
+        QCOMPARE(changed.count(), 1);
+
+        release({{"tag_name", "v0.4.0"}, {"html_url", "https://example.invalid/0.4.0"}});
         updater.check();
         QTRY_VERIFY(updater.available());
-        QCOMPARE(updater.latestVersion(), QString("0.3.0"));
-        QVERIFY(updater.packageUrl().toString().endsWith("/openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst"));
-
-        QSignalSpy installed(&updater, &Updater::installed);
-        updater.install();
-        QTRY_COMPARE(installed.count(), 1);
-        QFile args(dir.filePath("args"));
-        QVERIFY(args.open(QIODevice::ReadOnly));
-        QCOMPARE(QString::fromUtf8(args.readAll()).split('\n', Qt::SkipEmptyParts),
-                 QStringList({"/usr/bin/pacman", "-U", "--noconfirm",
-                              dir.filePath("update/openvpn-gui-0.3.0-1-x86_64.pkg.tar.zst")}));
-        QVERIFY(updater.error().isEmpty());
+        QCOMPARE(updater.latestVersion(), QString("0.4.0"));
+        QCOMPARE(updater.releasePage(), QUrl("https://example.invalid/0.4.0"));
     }
 };
 

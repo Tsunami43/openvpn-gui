@@ -5,7 +5,6 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QIcon>
-#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -61,18 +60,7 @@ int main(int argc, char *argv[]) {
     if (!shell.claimInstance((runtime.isEmpty() ? QDir::tempPath() : runtime) + "/openvpn-gui", importPath))
         return 0; // The running instance shows its window instead.
 
-    // An installed update restarts the app once this copy has quit (and
-    // switched the tunnel off), so the new one can claim the instance.
     Updater updater(APP_VERSION);
-    bool relaunch = false;
-    QObject::connect(&updater, &Updater::installed, &app, [&] {
-        relaunch = true;
-        shell.quit();
-    });
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&] {
-        if (relaunch)
-            QProcess::startDetached("/bin/sh", {"-c", "sleep 1; exec /usr/bin/openvpn-gui"});
-    });
 
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);

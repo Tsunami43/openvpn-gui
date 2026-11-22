@@ -25,7 +25,7 @@ ApplicationWindow {
     readonly property bool up: backend.status === "connected"
     readonly property bool busy: !idle && !up
     // Keys belong to a dialog while one is open.
-    readonly property bool modal: editor.visible || credentials.visible || confirmDelete.visible || confirmQuit.visible || confirmUpdate.visible
+    readonly property bool modal: editor.visible || credentials.visible || confirmDelete.visible || confirmQuit.visible || updateInfo.visible
     readonly property var selected: {
         backend.profiles // re-read when the list changes
         return backend.profile(backend.selectedId)
@@ -125,7 +125,7 @@ ApplicationWindow {
         enabled: !win.modal
         onActivated: {
             if (win.helpVisible) win.helpVisible = false
-            else if (backend.error !== "" || updater.error !== "") { backend.clearError(); updater.clearError() }
+            else if (backend.error !== "") backend.clearError()
             else if (shell.trayAvailable) shell.hideWindow()
         }
     }
@@ -165,24 +165,16 @@ ApplicationWindow {
                     color: "#ececf1"
                 }
                 Item { Layout.fillWidth: true }
-                // A newer release on GitHub: offered here until it is installed.
+                // A newer release on GitHub: said here until pacman installs it.
                 Button {
                     visible: updater.available
-                    enabled: updater.state === "idle"
                     highlighted: true
-                    flat: updater.state !== "idle"
                     implicitHeight: 34
                     font.pixelSize: 12
                     topInset: 2
                     bottomInset: 2
-                    text: {
-                        translator.language
-                        if (updater.state === "downloading")
-                            return qsTr("Downloading %1%").arg(Math.round(updater.progress * 100))
-                        if (updater.state === "installing") return qsTr("Installing…")
-                        return "↑  " + qsTr("Update to %1").arg(updater.latestVersion)
-                    }
-                    onClicked: confirmUpdate.open()
+                    text: "↑  " + qsTr("%1 is out").arg(updater.latestVersion)
+                    onClicked: updateInfo.open()
                 }
                 Rectangle {
                     implicitHeight: 26
@@ -303,7 +295,7 @@ ApplicationWindow {
             // Something went wrong: say so in the window, with OpenVPN's words.
             Rectangle {
                 Layout.fillWidth: true
-                visible: backend.error !== "" || updater.error !== ""
+                visible: backend.error !== ""
                 implicitHeight: errorRow.implicitHeight + 20
                 radius: theme.radius
                 color: "#24131a"
@@ -320,7 +312,7 @@ ApplicationWindow {
                     Label {
                         Layout.fillWidth: true
                         Layout.maximumHeight: 120
-                        text: backend.error !== "" ? backend.error : updater.error
+                        text: backend.error
                         color: "#ffb4b4"
                         wrapMode: Text.Wrap
                         elide: Text.ElideRight
@@ -329,7 +321,7 @@ ApplicationWindow {
                     ToolButton {
                         Layout.alignment: Qt.AlignTop
                         text: "✕"
-                        onClicked: backend.error !== "" ? backend.clearError() : updater.clearError()
+                        onClicked: backend.clearError()
                     }
                 }
             }
@@ -539,31 +531,56 @@ ApplicationWindow {
     }
 
     AppDialog {
-        id: confirmUpdate
+        id: updateInfo
         anchors.centerIn: parent
-        width: Math.min(parent.width - 32, 340)
+        width: Math.min(parent.width - 32, 360)
         modal: true
-        title: qsTr("Update to %1?").arg(updater.latestVersion)
+        title: qsTr("OpenVPN GUI %1 is out").arg(updater.latestVersion)
         // Wrapped text sized against the dialog's own width, so its height
         // never feeds back into that width.
         contentWidth: availableWidth
-        contentHeight: updateText.implicitHeight
-        Label {
-            id: updateText
-            width: confirmUpdate.availableWidth
-            text: {
-                translator.language
-                const what = qsTr("The new version is downloaded from GitHub and installed (your password is asked for), then the app restarts.")
-                return win.idle ? what : what + " " + qsTr("The tunnel to %1 will be switched off.").arg(backend.activeName)
+        contentHeight: updateColumn.implicitHeight
+        ColumnLayout {
+            id: updateColumn
+            width: updateInfo.availableWidth
+            spacing: 10
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("You have %1. Update it with the rest of the system:").arg(updater.currentVersion)
+                wrapMode: Text.WordWrap
+                color: "#a8a8b2"
             }
-            wrapMode: Text.WordWrap
-            color: "#a8a8b2"
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: command.implicitHeight + 16
+                radius: Math.min(4, theme.radius)
+                color: "#1b1b20"
+                border.color: "#33333b"
+                TextEdit {
+                    id: command
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    text: "sudo pacman -Syu"
+                    readOnly: true
+                    selectByMouse: true
+                    font.family: "monospace"
+                    font.pixelSize: 13
+                    color: "#ececf1"
+                }
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Installed from a downloaded package? The release page shows how to add the OpenVPN GUI repository, so pacman keeps it up to date.")
+                wrapMode: Text.WordWrap
+                color: "#7c7c86"
+                font.pixelSize: 12
+            }
         }
         footer: DialogButtonBox {
-            Button { text: qsTr("Later"); flat: true; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
-            Button { text: qsTr("Update"); highlighted: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
-            onAccepted: { confirmUpdate.close(); updater.install() }
-            onRejected: confirmUpdate.close()
+            Button { text: qsTr("Close"); flat: true; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            Button { text: qsTr("Release page"); highlighted: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            onAccepted: { updateInfo.close(); updater.openReleasePage() }
+            onRejected: updateInfo.close()
         }
     }
 
