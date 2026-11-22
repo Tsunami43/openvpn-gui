@@ -209,4 +209,6 @@ void Shell::rebuildMenu() {
     }
     m_menu->addSeparator();
     m_menu->addAction(running ? tr("Disconnect and quit") : tr("Quit"), this, &Shell::quit);
+    m_menu->addSeparator();
+    m_menu->addAction(tr("OpenVPN GUI %1").arg(QCoreApplication::applicationVersion()))->setEnabled(false);
 }

@@ -167,6 +167,14 @@ ApplicationWindow {
                     font.weight: Font.DemiBold
                     color: "#ececf1"
                 }
+                // Which version is running, always in sight.
+                Label {
+                    Layout.alignment: Qt.AlignBaseline
+                    Layout.leftMargin: -4
+                    text: Qt.application.version
+                    font.pixelSize: 12
+                    color: "#5c5c66"
+                }
                 Item { Layout.fillWidth: true }
                 // A newer release on GitHub: said here until pacman installs it.
                 Button {
