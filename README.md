@@ -1,112 +1,74 @@
+<div align="center">
+
+<img src="pkgbuild/openvpn-gui.svg" width="80" alt="">
+
 # OpenVPN GUI
 
-[![Build](https://github.com/Tsunami43/openvpn-gui/actions/workflows/build.yml/badge.svg)](https://github.com/Tsunami43/openvpn-gui/actions/workflows/build.yml)
+Saved OpenVPN profiles, switched on and off from the window or the system tray.
 
-![OpenVPN GUI connected to a saved profile](docs/screenshot.png)
+[![Release](https://img.shields.io/github/v/release/Tsunami43/openvpn-gui?label=release&color=f5c400)](https://github.com/Tsunami43/openvpn-gui/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/Tsunami43/openvpn-gui/build.yml?branch=main&label=build)](https://github.com/Tsunami43/openvpn-gui/actions/workflows/build.yml)
+[![License](https://img.shields.io/github/license/Tsunami43/openvpn-gui?color=blue)](LICENSE)
+[![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=archlinux&logoColor=white)](#install)
+[![Qt 6](https://img.shields.io/badge/Qt_6-41CD52?logo=qt&logoColor=white)](https://www.qt.io)
 
-OpenVPN GUI keeps your OpenVPN profiles and switches them on and off, from
-its window or from its icon in the Omarchy bar.
+<img src="docs/screenshot.png" width="360" alt="OpenVPN GUI connected to a saved profile">
 
-Add a profile once: give it a name, pick the `.ovpn` file, and enter the
-username and password if the server asks for them. After that, select it and
-press Space. Omarchy's password dialog confirms the start, and the saved
-login is answered for you.
+</div>
 
-## How it works
+## Features
 
-- **Profiles.** The `.ovpn` is copied to
-  `~/.local/share/openvpn-gui/profiles/` (readable only by you), so moving or
-  deleting the original later is fine. The list lives in
-  `~/.config/openvpn-gui/profiles.json`. Files the profile refers to by a
-  relative path still resolve beside the original.
-- **Passwords** are kept in the system keyring (gnome-keyring, through
-  libsecret), never in a file. If the server turns a saved password down, the
-  app asks again and can remember the new one.
-- **OpenVPN** runs as root, started once through `pkexec` with a management
-  socket in `$XDG_RUNTIME_DIR/openvpn-gui`. The state, traffic, login and
-  switching off all go over that socket. The package installs a polkit rule
-  (`/usr/share/polkit-1/rules.d/49-openvpn-gui.rules`) that lets members of
-  `wheel` at an active local session start `/usr/bin/openvpn` without a
-  password; everyone else is asked for it when switching on. Note that this
-  lets those users run OpenVPN as root with any profile, which can run
-  scripts, so it is about as strong as passwordless sudo. OpenVPN's log is in `$XDG_RUNTIME_DIR/openvpn-gui/openvpn.log`.
-- **Updates.** At start and every six hours the app looks at the latest
-  release on GitHub. When it is newer, a button at the top says so and shows
-  how to update: `sudo pacman -Syu` with the repository added.
-- **Releasing.** Bump `VERSION` in `openvpn-gui.pro` and `pkgver` in
-  `pkgbuild/PKGBUILD`, then push a `v…` tag. GitHub Actions attaches the
-  x86_64 package to the release and signs it into the pacman repository (the
-  `repo-x86_64` pre-release) with the `PACMAN_GPG_PRIVATE_KEY` secret. When
-  the `AUR_ENABLED` repository variable is `true`, it also publishes
-  `aur/PKGBUILD` with the new version to the AUR, using the
-  `AUR_SSH_PRIVATE_KEY` secret.
-- **The bar.** Closing the window keeps the app in the Omarchy bar. Click
-  the icon to bring the window back; its menu connects a profile,
-  disconnects, or quits. Quitting switches the tunnel off. Launching the app
-  again shows the running window instead of starting a second copy.
-
-## Shortcuts
-
-| Key    | Action                       |
-|--------|------------------------------|
-| Space  | Connect or disconnect        |
-| ↑ ↓    | Choose a profile             |
-| N      | New profile                  |
-| E      | Edit the profile             |
-| Delete | Delete the profile           |
-| Esc    | Hide to the bar              |
-| ?      | Show shortcuts               |
-| Q      | Quit (disconnects)           |
-
-## Requirements
-
-Arch Linux (Omarchy) with:
-
-- Qt 6: `qt6-base`, `qt6-declarative`, `qt6-svg`, `qt6-wayland`
-- `openvpn`, `polkit`, `libsecret` (with gnome-keyring running)
-- `xdg-desktop-portal` for the file picker
-- To build: `gcc`, `make`, `pkgconf`
+- **Profiles in one place.** Add a `.ovpn` once with its name, username and
+  password; after that, select it and press Space.
+- **No password prompts.** The saved login is answered for you, and members
+  of `wheel` start the tunnel without typing their system password.
+- **Passwords in the keyring.** Kept in the system keyring through libsecret,
+  never in a file.
+- **Lives in the tray.** Closing the window keeps the app running; the tray
+  menu connects, disconnects or quits.
+- **Live status.** Connection steps, address, uptime and traffic as they
+  happen, with OpenVPN's own words when something goes wrong.
+- **Up to date.** Installed from the signed pacman repository, it updates
+  with `pacman -Syu`, and the app says when a new version is out.
 
 ## Install
+
+Arch Linux and Arch-based distributions (EndeavourOS, CachyOS, Manjaro,
+Garuda and others):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/install.sh | sh
 ```
 
 On x86_64 this adds the project's signed pacman repository and installs the
-package, so `pacman -Syu` keeps it up to date. On other machines it builds the
-latest release from source.
+package; on other architectures it builds the latest release from source.
 
-By hand, on x86_64: trust the signing key once,
+> [!NOTE]
+> The package installs a polkit rule that lets members of `wheel` at an
+> active local session start OpenVPN as root without a password. That is
+> about as strong as passwordless `sudo` for OpenVPN; remove
+> `/usr/share/polkit-1/rules.d/49-openvpn-gui.rules` to be asked again.
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/pkgbuild/openvpn-gui.asc | sudo pacman-key --add -
-sudo pacman-key --lsign-key 69B2A58A0FC6BAF7A541DAD2CD1A2C3155059EFD
-```
+## Shortcuts
 
-add the repository to the end of `/etc/pacman.conf`:
+| Key    | Action                |
+|--------|-----------------------|
+| Space  | Connect or disconnect |
+| ↑ ↓    | Choose a profile      |
+| N      | New profile           |
+| E      | Edit the profile      |
+| Delete | Delete the profile    |
+| Esc    | Hide to the tray      |
+| ?      | Show shortcuts        |
+| Q      | Quit (disconnects)    |
 
-```ini
-[openvpn-gui]
-Server = https://github.com/Tsunami43/openvpn-gui/releases/download/repo-$arch
-```
+## Requirements
 
-and install:
-
-```sh
-sudo pacman -Syu openvpn-gui
-```
-
-Or from source:
-
-```sh
-git clone https://github.com/Tsunami43/openvpn-gui.git
-cd openvpn-gui
-bin/install
-```
-
-This builds the app, packages it with `makepkg` and installs it, so OpenVPN
-GUI appears in the app launcher.
+- Qt 6: `qt6-base`, `qt6-declarative`, `qt6-svg`, `qt6-wayland`
+- `openvpn`, `polkit` with an agent running, `libsecret` with a keyring
+  (gnome-keyring or KWallet's Secret Service)
+- `xdg-desktop-portal` for the file picker
+- A system tray to keep the app running with its window closed
 
 ## Build
 
@@ -117,4 +79,8 @@ bin/install    # makepkg -fsi, adds OpenVPN GUI to the app launcher
 ```
 
 `build/openvpn-gui path/to/profile.ovpn` opens the new-profile dialog with
-that file.
+that file. How releases are made is in [docs/releasing.md](docs/releasing.md).
+
+## License
+
+[MIT](LICENSE)

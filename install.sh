@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs OpenVPN GUI on Arch Linux / Omarchy:
+# Installs OpenVPN GUI on Arch Linux and Arch-based distributions:
 #
 #   curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/install.sh | sh
 #

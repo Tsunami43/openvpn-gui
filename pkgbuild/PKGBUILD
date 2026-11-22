@@ -1,7 +1,7 @@
 pkgname=openvpn-gui
 pkgver=0.4.0
 pkgrel=1
-pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the Omarchy bar'
+pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the system tray'
 arch=('x86_64' 'aarch64')
 license=('MIT')
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'xdg-desktop-portal' 'openvpn' 'polkit' 'libsecret')

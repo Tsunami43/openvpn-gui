@@ -4,7 +4,7 @@
 pkgname=openvpn-gui
 pkgver=0.3.0
 pkgrel=1
-pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the Omarchy bar'
+pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the system tray'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Tsunami43/openvpn-gui'
 license=('MIT')
