@@ -1,6 +1,6 @@
 pkgname=openvpn-gui
-pkgver=0.2.0
-pkgrel=2
+pkgver=0.3.0
+pkgrel=1
 pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the Omarchy bar'
 arch=('x86_64' 'aarch64')
 license=('MIT')
