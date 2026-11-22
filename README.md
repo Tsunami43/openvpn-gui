@@ -69,8 +69,15 @@ Arch Linux (Omarchy) with:
 
 ## Install
 
-On x86_64, from the project's signed pacman repository, so `pacman -Syu`
-keeps it up to date. Trust the signing key once:
+```sh
+curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/install.sh | sh
+```
+
+On x86_64 this adds the project's signed pacman repository and installs the
+package, so `pacman -Syu` keeps it up to date. On other machines it builds the
+latest release from source.
+
+By hand, on x86_64: trust the signing key once,
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/pkgbuild/openvpn-gui.asc | sudo pacman-key --add -
