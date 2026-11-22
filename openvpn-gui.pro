@@ -3,7 +3,7 @@ QT += core gui widgets qml quick quickcontrols2 dbus network
 CONFIG += c++17 release link_pkgconfig
 PKGCONFIG += libsecret-1
 TARGET = openvpn-gui
-VERSION = 0.3.0
+VERSION = 0.4.0
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 TEMPLATE = app
 
