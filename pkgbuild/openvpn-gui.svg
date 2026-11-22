@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE14D"/>
+      <stop offset="1" stop-color="#FFC300"/>
+    </linearGradient>
+    <radialGradient id="light" cx="32" cy="35" r="7" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".45" stop-color="#FFF3B0"/>
+      <stop offset="1" stop-color="#FFD60A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+
+  <!-- The tunnel mouth, with its walls receding toward the light. -->
+  <path d="M8 54V31a24 24 0 0 1 48 0v23z" fill="#0e0e10"/>
+  <path d="M14 54V32a18 18 0 0 1 36 0v22" fill="none" stroke="#2a2a30" stroke-width="2"/>
+  <path d="M19.5 54V33a12.5 12.5 0 0 1 25 0v21" fill="none" stroke="#3a3a42" stroke-width="2"/>
+  <path d="M24.5 54V34a7.5 7.5 0 0 1 15 0v20" fill="none" stroke="#4a4a54" stroke-width="2"/>
+
+  <!-- The way out: a bright opening at the far end. -->
+  <circle cx="32" cy="35" r="7" fill="url(#light)"/>
+  <path d="M29 39v-3.5a3 3 0 0 1 6 0V39z" fill="#FFFFFF"/>
+
+  <!-- The road leading in. -->
+  <path d="M32 41.5v3M32 47.5v3.5" stroke="#FFD60A" stroke-width="1.6" stroke-linecap="round"/>
+  <rect x="8" y="53" width="48" height="3" fill="#0e0e10"/>
+</svg>

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenVPN GUI
+Comment=Saved OpenVPN profiles, switched on and off from the window or the bar
+Exec=openvpn-gui %f
+Icon=openvpn-gui
+Terminal=false
+Categories=Network;Utility;
+Keywords=vpn;openvpn;ovpn;tunnel;
+MimeType=application/x-openvpn-profile;
+StartupWMClass=openvpn-gui

@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="Main.qml">Main.qml</file>
+        <file alias="AppDialog.qml">AppDialog.qml</file>
+        <file alias="PowerButton.qml">PowerButton.qml</file>
+        <file alias="ProfileCard.qml">ProfileCard.qml</file>
+        <file alias="ProfileEditor.qml">ProfileEditor.qml</file>
+        <file alias="StatTile.qml">StatTile.qml</file>
+        <file alias="icon.svg">../pkgbuild/openvpn-gui.svg</file>
+    </qresource>
+</RCC>

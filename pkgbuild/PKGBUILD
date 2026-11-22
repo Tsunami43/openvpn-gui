@@ -1,0 +1,27 @@
+pkgname=openvpn-gui
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the Omarchy bar'
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'xdg-desktop-portal' 'openvpn' 'polkit' 'libsecret')
+makedepends=('gcc' 'make' 'pkgconf')
+# The app was called tunnel before; installing this replaces it.
+provides=('tunnel')
+conflicts=('tunnel')
+replaces=('tunnel')
+source=()
+sha256sums=()
+
+build() {
+  cd "$startdir/.."
+  ./bin/build
+}
+
+package() {
+  cd "$startdir/.."
+  install -Dm755 build/openvpn-gui "$pkgdir/usr/bin/openvpn-gui"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$startdir/openvpn-gui.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/openvpn-gui.svg"
+  install -Dm644 "$startdir/openvpn-gui.desktop" "$pkgdir/usr/share/applications/openvpn-gui.desktop"
+}
