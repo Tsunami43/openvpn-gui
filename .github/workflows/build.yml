@@ -55,26 +55,73 @@ jobs:
 
       # The signed pacman repository lives in the repo-x86_64 pre-release
       # (a pre-release, so the app's update check never takes it for a
-      # version). Uploading replaces the database, then packages no longer in
-      # it are removed.
+      # version).
       - name: Publish to the pacman repository
         if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PACMAN_GPG_PRIVATE_KEY: ${{ secrets.PACMAN_GPG_PRIVATE_KEY }}
           GPG_KEY: 69B2A58A0FC6BAF7A541DAD2CD1A2C3155059EFD
-          GH_REPO: ${{ github.repository }}
-          REPO: repo-x86_64
         run: |
           printf '%s\n' "$PACMAN_GPG_PRIVATE_KEY" | gpg --batch --import
           bin/repo /repo pkgbuild/*.pkg.tar.zst
-          gh release view "$REPO" >/dev/null 2>&1 \
-            || gh release create "$REPO" --prerelease --target main \
-                 --title "pacman repository (x86_64)" \
-                 --notes "The signed pacman repository for OpenVPN GUI. See the README for how to add it."
-          cd /repo
-          gh release upload "$REPO" openvpn-gui.db openvpn-gui.db.sig openvpn-gui.files openvpn-gui.files.sig \
-            *.pkg.tar.zst *.pkg.tar.zst.sig --clobber
-          gh release view "$REPO" --json assets -q '.assets[].name' | while read -r asset; do
-            [ -e "$asset" ] || gh release delete-asset "$REPO" "$asset" --yes
-          done
+          bin/publish-repo repo-x86_64 /repo
+
+  # The same on aarch64, in Arch Linux ARM on a native ARM runner. There is
+  # no official Arch Linux ARM container image, so the official root
+  # filesystem is checked against the Arch Linux ARM build key and imported.
+  # Pushes to main skip it (the download is large); tags publish, and a
+  # manual run without a tag builds and tests only.
+  aarch64:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04-arm
+    env:
+      TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || '') }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare an Arch Linux ARM container
+        run: |
+          url=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+          curl -fsSL -o alarm.tar.gz "$url"
+          curl -fsSL -o alarm.tar.gz.sig "$url.sig"
+          export GNUPGHOME="$(mktemp -d)"
+          gpg --batch --quiet --import .github/archlinuxarm-build.asc
+          gpg --batch --status-fd 1 --verify alarm.tar.gz.sig alarm.tar.gz \
+            | grep -q '^\[GNUPG:\] VALIDSIG 68B3537F39A313B3E574D06777193F152BDBE6A6 '
+          docker import alarm.tar.gz alarm
+          rm alarm.tar.gz alarm.tar.gz.sig
+
+      - name: Test, build and sign
+        env:
+          PACMAN_GPG_PRIVATE_KEY: ${{ secrets.PACMAN_GPG_PRIVATE_KEY }}
+          GPG_KEY: 69B2A58A0FC6BAF7A541DAD2CD1A2C3155059EFD
+        run: |
+          docker run --rm -e TAG -e PACMAN_GPG_PRIVATE_KEY -e GPG_KEY -e HOST_UID="$(id -u)" \
+            -v "$PWD:/src" -w /src alarm /bin/bash -euo pipefail -c '
+            pacman-key --init >/dev/null
+            pacman-key --populate archlinuxarm >/dev/null
+            pacman -Syu --noconfirm --needed --disable-sandbox base-devel \
+              qt6-base qt6-declarative qt6-svg qt6-wayland \
+              xdg-desktop-portal openvpn polkit libsecret
+            useradd -m builder
+            chown -R builder /src
+            su builder -c "bin/test"
+            su builder -c "cd pkgbuild && makepkg -f --nodeps"
+            if [ -n "$TAG" ]; then
+              printf "%s\n" "$PACMAN_GPG_PRIVATE_KEY" | gpg --batch --import
+              bin/repo /src/repo-out pkgbuild/*.pkg.tar.*
+            fi
+            chown -R "$HOST_UID" /src
+          '
+
+      - name: Attach to the release and publish to the pacman repository
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" pkgbuild/*.pkg.tar.* --clobber
+          bin/publish-repo repo-aarch64 repo-out

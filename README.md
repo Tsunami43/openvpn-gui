@@ -40,8 +40,9 @@ Garuda and others):
 curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/install.sh | sh
 ```
 
-On x86_64 this adds the project's signed pacman repository and installs the
-package; on other architectures it builds the latest release from source.
+On x86_64 and aarch64 this adds the project's signed pacman repository and
+installs the package; on other architectures it builds the latest release
+from source.
 
 > [!NOTE]
 > The package installs a polkit rule that lets members of `wheel` at an

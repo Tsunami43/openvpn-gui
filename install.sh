@@ -3,8 +3,8 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Tsunami43/openvpn-gui/main/install.sh | sh
 #
-# On x86_64 it trusts the project's package signing key, adds the signed
-# pacman repository to /etc/pacman.conf and installs the package, so
+# On x86_64 and aarch64 it trusts the project's package signing key, adds the
+# signed pacman repository to /etc/pacman.conf and installs the package, so
 # pacman -Syu keeps it up to date. Elsewhere it builds the latest release from
 # source with makepkg. Running it again is harmless.
 set -eu
@@ -62,10 +62,10 @@ main() {
     exit 1
   fi
 
-  if [ "$(uname -m)" != x86_64 ]; then
-    build_from_source
-    return
-  fi
+  case "$(uname -m)" in
+    x86_64 | aarch64) ;;
+    *) build_from_source; return ;;
+  esac
 
   say "Trusting the OpenVPN GUI package signing key"
   sudo pacman-key --add - >/dev/null <<'KEY'
