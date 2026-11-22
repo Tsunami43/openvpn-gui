@@ -1,5 +1,7 @@
 # OpenVPN GUI
 
+[![Build](https://github.com/Tsunami43/openvpn-gui/actions/workflows/build.yml/badge.svg)](https://github.com/Tsunami43/openvpn-gui/actions/workflows/build.yml)
+
 ![OpenVPN GUI connected to a saved profile](docs/screenshot.png)
 
 OpenVPN GUI keeps your OpenVPN profiles and switches them on and off, from

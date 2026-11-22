@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the x86_64 package to (e.g. v0.2.0)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git github-cli \
+            qt6-base qt6-declarative qt6-svg qt6-wayland \
+            xdg-desktop-portal openvpn polkit libsecret
+
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: bin/test
+
+      - name: Build package
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE/pkgbuild' && makepkg -f --nodeps"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-gui-x86_64
+          path: pkgbuild/*.pkg.tar.*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --title "OpenVPN GUI ${TAG#v}" --generate-notes
+          gh release upload "$TAG" pkgbuild/*.pkg.tar.* --clobber
