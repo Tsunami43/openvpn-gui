@@ -26,7 +26,7 @@ jobs:
             qt6-base qt6-declarative qt6-svg qt6-wayland \
             xdg-desktop-portal openvpn polkit libsecret
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Test
         run: bin/test
@@ -37,7 +37,7 @@ jobs:
           chown -R builder "$GITHUB_WORKSPACE"
           su builder -c "cd '$GITHUB_WORKSPACE/pkgbuild' && makepkg -f --nodeps"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: openvpn-gui-x86_64
           path: pkgbuild/*.pkg.tar.*
