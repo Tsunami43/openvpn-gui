@@ -24,6 +24,9 @@ ApplicationWindow {
     readonly property bool idle: backend.status === "disconnected"
     readonly property bool up: backend.status === "connected"
     readonly property bool busy: !idle && !up
+    // Connected, but nothing comes from the server: say so, not "Protected".
+    readonly property bool stalled: up && backend.stalled
+    readonly property color warning: "#ffb4b4"
     // Keys belong to a dialog while one is open.
     readonly property bool modal: editor.visible || credentials.visible || confirmDelete.visible || confirmQuit.visible || updateInfo.visible
     readonly property var selected: {
@@ -90,7 +93,7 @@ ApplicationWindow {
         switch (backend.status) {
         case "authorizing": return qsTr("Confirm in the password dialog")
         case "connecting": return stepLabel(backend.step) + "…"
-        case "connected": return qsTr("Protected")
+        case "connected": return backend.stalled ? qsTr("No connection to the server") : qsTr("Protected")
         case "disconnecting": return qsTr("Disconnecting…")
         default: return qsTr("Not connected")
         }
@@ -181,7 +184,7 @@ ApplicationWindow {
                     implicitWidth: pill.implicitWidth + 26
                     radius: Math.min(13, Math.max(4, theme.radius))
                     color: win.up ? Qt.rgba(1, 1, 1, 0.06) : "#16161a"
-                    border.color: win.up ? theme.accent : "#26262c"
+                    border.color: win.stalled ? win.warning : win.up ? theme.accent : "#26262c"
                     Row {
                         id: pill
                         anchors.centerIn: parent
@@ -189,7 +192,7 @@ ApplicationWindow {
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 8; height: 8; radius: 4
-                            color: win.up ? theme.accent : win.busy ? Qt.darker(theme.accent, 1.3) : "#5c5c66"
+                            color: win.stalled ? win.warning : win.up ? theme.accent : win.busy ? Qt.darker(theme.accent, 1.3) : "#5c5c66"
                             SequentialAnimation on opacity {
                                 running: win.busy
                                 loops: Animation.Infinite
@@ -198,9 +201,9 @@ ApplicationWindow {
                             }
                         }
                         Label {
-                            text: win.up ? qsTr("Connected") : win.busy ? qsTr("Connecting") : qsTr("Off")
+                            text: win.stalled ? qsTr("No connection") : win.up ? qsTr("Connected") : win.busy ? qsTr("Connecting") : qsTr("Off")
                             font.pixelSize: 12
-                            color: win.up ? theme.accent : "#a8a8b2"
+                            color: win.stalled ? win.warning : win.up ? theme.accent : "#a8a8b2"
                         }
                     }
                 }
@@ -241,7 +244,7 @@ ApplicationWindow {
                             text: win.statusLabel()
                             font.pixelSize: 20
                             font.weight: Font.DemiBold
-                            color: win.up ? theme.accent : "#ececf1"
+                            color: win.stalled ? win.warning : win.up ? theme.accent : "#ececf1"
                             elide: Text.ElideRight
                         }
                         Label {

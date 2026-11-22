@@ -32,6 +32,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString localIp READ localIp NOTIFY statusChanged)
     Q_PROPERTY(QString remoteIp READ remoteIp NOTIFY statusChanged)
     Q_PROPERTY(qint64 connectedSince READ connectedSince NOTIFY statusChanged)
+    // Connected, but nothing has come from the server for a while.
+    Q_PROPERTY(bool stalled READ stalled NOTIFY statusChanged)
     Q_PROPERTY(double bytesIn READ bytesIn NOTIFY trafficChanged)
     Q_PROPERTY(double bytesOut READ bytesOut NOTIFY trafficChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
@@ -43,6 +45,7 @@ public:
         QString configDir;  // empty: ~/.config/openvpn-gui
         QString dataDir;    // empty: ~/.local/share/openvpn-gui
         QString runtimeDir; // empty: $XDG_RUNTIME_DIR/openvpn-gui
+        QString stateDir;   // empty: ~/.local/state/openvpn-gui (the kept log)
         QString openvpn;    // empty: found on PATH
         QString pkexec;     // empty: found on PATH
     };
@@ -63,6 +66,7 @@ public:
     QString localIp() const { return m_localIp; }
     QString remoteIp() const { return m_remoteIp; }
     qint64 connectedSince() const { return m_connectedSince; }
+    bool stalled() const { return m_stalled; }
     double bytesIn() const { return double(m_bytesIn); }
     double bytesOut() const { return double(m_bytesOut); }
     QString error() const { return m_error; }
@@ -72,6 +76,12 @@ public:
 
     QString socketPath() const { return m_runtimeDir + "/management.sock"; }
     QString logPath() const { return m_runtimeDir + "/openvpn.log"; }
+    // OpenVPN's log as the management socket tells it, kept across tunnels
+    // and readable without root.
+    QString keptLogPath() const { return m_stateDir + "/openvpn.log"; }
+    // How long a connected tunnel may hear nothing from the server before it
+    // counts as stalled: two of the server's pings (ping 10 unless pushed).
+    int stallAfterMs() const { return m_stallAfterMs; }
     QString activeFile() const { return m_runtimeDir + "/active"; }
     bool isRunning() const { return m_status != "disconnected"; }
 
@@ -118,11 +128,13 @@ private:
     void askCredentials(const QString &realm);
     void resetSession();
     QString logTail(int lines = 6) const;
+    void keepLog(const QString &line);
+    void setStalled(bool stalled);
 
     std::unique_ptr<QSettings> m_settings;
     std::unique_ptr<ProfileStore> m_store;
     SecretStore *m_secrets = nullptr;
-    QString m_runtimeDir, m_openvpn, m_pkexec;
+    QString m_runtimeDir, m_stateDir, m_openvpn, m_pkexec;
     FilePicker *m_picker = nullptr;
 
     QString m_selectedId, m_activeId;
@@ -131,6 +143,10 @@ private:
     qint64 m_connectedSince = 0, m_bytesIn = 0, m_bytesOut = 0;
     bool m_stopRequested = false;
     bool m_savedCredentialsTried = false;
+    bool m_stalled = false;
+    int m_stallAfterMs = 20000;
+    QTimer m_stallTimer;
+    qint64 m_keptLogSince = 0; // log lines older than this are already kept
 
     QProcess m_launch;
     QLocalSocket m_socket;

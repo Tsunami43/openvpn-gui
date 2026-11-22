@@ -1,8 +1,10 @@
 #include "backend.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QStandardPaths>
 
@@ -28,6 +30,8 @@ Backend::Backend(const Paths &paths, SecretStore *secrets, FilePicker *picker, Q
             base = QDir::tempPath();
         m_runtimeDir = base + "/openvpn-gui";
     }
+    m_stateDir = !paths.stateDir.isEmpty() ? paths.stateDir
+        : QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation) + "/openvpn-gui";
     m_openvpn = paths.openvpn.isEmpty() ? QStandardPaths::findExecutable("openvpn") : paths.openvpn;
     // The real path (/usr/bin/openvpn, not /usr/sbin/openvpn through a link),
     // so the polkit rule the package installs recognises it.
@@ -74,6 +78,9 @@ Backend::Backend(const Paths &paths, SecretStore *secrets, FilePicker *picker, Q
         setError(tr("pkexec could not be run: %1").arg(m_launch.errorString()));
     });
 
+    m_stallTimer.setSingleShot(true);
+    connect(&m_stallTimer, &QTimer::timeout, this, [this] { setStalled(true); });
+
     m_attachRetry.setSingleShot(true);
     m_attachRetry.setInterval(200);
     connect(&m_attachRetry, &QTimer::timeout, this, &Backend::attach);
@@ -93,6 +100,10 @@ Backend::Backend(const Paths &paths, SecretStore *secrets, FilePicker *picker, Q
         // The hold only gates the first start: with it left on, a restart
         // after a dropped link would wait for a window that may be closed.
         m_log.clear();
+        // The history that comes first is already in the kept log when the
+        // app attaches again to a running tunnel.
+        const QFileInfo kept(keptLogPath());
+        m_keptLogSince = kept.exists() ? kept.lastModified().toSecsSinceEpoch() : 0;
         send("state on");
         send("bytecount 2");
         send("log on all");
@@ -400,7 +411,13 @@ void Backend::handleLine(const QString &line) {
     } else if (line.startsWith(">BYTECOUNT:")) {
         const QStringList counts = line.mid(11).split(',');
         if (counts.size() == 2) {
-            m_bytesIn = counts[0].toLongLong();
+            const qint64 in = counts[0].toLongLong();
+            if (in > m_bytesIn && m_status == "connected") {
+                // Something came from the server: the link is alive.
+                setStalled(false);
+                m_stallTimer.start(m_stallAfterMs);
+            }
+            m_bytesIn = in;
             m_bytesOut = counts[1].toLongLong();
             emit trafficChanged();
         }
@@ -420,7 +437,13 @@ void Backend::handleLine(const QString &line) {
         send("hold release");
     } else if (line.startsWith(">LOG:")) {
         // time,flags,message
-        m_log.append(line.mid(5).section(',', 2));
+        keepLog(line.mid(5));
+        const QString message = line.mid(5).section(',', 2);
+        // The server's keepalive sets how quickly a silent link counts as stalled.
+        static const QRegularExpression ping("^PUSH: Received control message: '.*[',]ping (\\d+)[,']");
+        if (const QRegularExpressionMatch m = ping.match(message); m.hasMatch() && m.captured(1).toInt() > 0)
+            m_stallAfterMs = qMax(10, 2 * m.captured(1).toInt()) * 1000;
+        m_log.append(message);
         if (m_log.size() > 40)
             m_log.removeFirst();
     } else if (line.startsWith(">FATAL:")) {
@@ -442,10 +465,16 @@ void Backend::applyState(const State &state) {
         m_remoteIp = state.remoteIp;
         m_connectedSince = state.time;
         clearError();
+        setStalled(false);
+        m_stallTimer.start(m_stallAfterMs);
         setStatus("connected");
     } else if (state.name == "EXITING") {
+        m_stallTimer.stop();
+        setStalled(false);
         setStatus("disconnecting");
     } else {
+        m_stallTimer.stop();
+        setStalled(false);
         m_connectedSince = 0;
         setStatus("connecting");
     }
@@ -471,8 +500,40 @@ void Backend::setError(const QString &message) {
     emit errorChanged();
 }
 
+void Backend::setStalled(bool stalled) {
+    if (stalled == m_stalled)
+        return;
+    m_stalled = stalled;
+    emit statusChanged();
+}
+
+void Backend::keepLog(const QString &entry) {
+    // time,flags,message
+    const qint64 time = entry.section(',', 0, 0).toLongLong();
+    QString message = entry.section(',', 2);
+    if (time < m_keptLogSince || message.isEmpty())
+        return;
+    if (message.startsWith("MANAGEMENT: CMD 'password"))
+        message = "MANAGEMENT: CMD 'password [hidden]'";
+    QDir().mkpath(m_stateDir);
+    QFile::setPermissions(m_stateDir, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    const QString path = keptLogPath();
+    if (QFileInfo(path).size() > 1024 * 1024) {
+        QFile::remove(path + ".1");
+        QFile::rename(path, path + ".1");
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append))
+        return;
+    file.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+    const QString stamp = QDateTime::fromSecsSinceEpoch(time).toString("yyyy-MM-dd HH:mm:ss");
+    file.write((stamp + ' ' + message + '\n').toUtf8());
+}
+
 void Backend::resetSession() {
     m_attachRetry.stop();
+    m_stallTimer.stop();
+    m_stalled = false;
     m_stopRequested = false;
     m_activeId.clear();
     m_step.clear();

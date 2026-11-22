@@ -1,3 +1,4 @@
+#include <QDateTime>
 #include <QSignalSpy>
 #include <QJsonObject>
 #include <QJsonDocument>
@@ -307,6 +308,87 @@ private slots:
         QVERIFY(backend.error().contains("Exiting due to fatal error"));
     }
 
+    void saysWhenTheServerGoesQuiet()
+    {
+        QTemporaryDir dir;
+        MemoryStore secrets;
+        QDir().mkpath(dir.filePath("run"));
+        FakeOpenvpn openvpn;
+        QVERIFY(openvpn.listen(dir.filePath("run/management.sock")));
+        Backend backend(paths(dir), &secrets);
+        QVERIFY(openvpn.accept());
+        QTRY_VERIFY(openvpn.seen().contains("hold off"));
+        QCOMPARE(backend.stallAfterMs(), 20000);
+
+        // The pushed keepalive sets the limit: two pings. A tiny one keeps
+        // the test quick (the floor is ten seconds, so ping 1 still waits 10).
+        openvpn.say(">LOG:1700000000,I,PUSH: Received control message: 'PUSH_REPLY,route 10.0.0.0 255.0.0.0,ping 7,ping-restart 60,ifconfig 10.8.0.6 255.255.255.0'\n");
+        QTRY_COMPARE(backend.stallAfterMs(), 14000);
+        openvpn.say(">LOG:1700000000,I,PUSH: Received control message: 'PUSH_REPLY,ping 1,ping-restart 5'\n");
+        QTRY_COMPARE(backend.stallAfterMs(), 10000);
+
+        openvpn.say(">STATE:1700000000,CONNECTED,SUCCESS,10.8.0.6,203.0.113.5,1194,,\n>BYTECOUNT:2048,512\n");
+        QTRY_COMPARE(backend.status(), QString("connected"));
+        QVERIFY(!backend.stalled());
+        // Only what is sent, nothing back: stalled after the limit.
+        openvpn.say(">BYTECOUNT:2048,900\n");
+        QTRY_VERIFY_WITH_TIMEOUT(backend.stalled(), 12000);
+        QCOMPARE(backend.status(), QString("connected"));
+        // The server is heard again.
+        openvpn.say(">BYTECOUNT:2300,950\n");
+        QTRY_VERIFY(!backend.stalled());
+        // Reconnecting is not stalled, it is connecting.
+        openvpn.say(">STATE:1700000100,RECONNECTING,ping-restart,,,,,\n");
+        QTRY_COMPARE(backend.status(), QString("connecting"));
+        QVERIFY(!backend.stalled());
+    }
+
+    void keepsTheLogAcrossTunnels()
+    {
+        QTemporaryDir dir;
+        MemoryStore secrets;
+        QDir().mkpath(dir.filePath("run"));
+        {
+            FakeOpenvpn openvpn;
+            QVERIFY(openvpn.listen(dir.filePath("run/management.sock")));
+            Backend backend(paths(dir), &secrets);
+            QVERIFY(openvpn.accept());
+            QTRY_VERIFY(openvpn.seen().contains("hold off"));
+            openvpn.say(">LOG:1700000000,I,Initialization Sequence Completed\n"
+                        ">LOG:1700000001,D,MANAGEMENT: CMD 'password \"Auth\" \"secret\"'\n"
+                        ">LOG:1700000002,I,[server] Inactivity timeout (--ping-restart), restarting\n");
+            QTRY_VERIFY(QFileInfo(backend.keptLogPath()).size() > 0);
+            QTest::qWait(50);
+            QCOMPARE(backend.keptLogPath(), dir.filePath("state/openvpn.log"));
+        }
+        QFile kept(dir.filePath("state/openvpn.log"));
+        QVERIFY(kept.open(QIODevice::ReadOnly));
+        const QString text = QString::fromUtf8(kept.readAll());
+        QVERIFY(text.contains("Initialization Sequence Completed"));
+        QVERIFY(text.contains("Inactivity timeout"));
+        QVERIFY(text.contains("password [hidden]"));
+        QVERIFY(!text.contains("secret"));
+        QCOMPARE(kept.permissions() & (QFile::ReadGroup | QFile::ReadOther), QFile::Permissions());
+        kept.close();
+
+        // Attaching again replays the history; what is already kept is not
+        // written twice, what is new is added.
+        QFile::remove(dir.filePath("run/management.sock"));
+        FakeOpenvpn again;
+        QVERIFY(again.listen(dir.filePath("run/management.sock")));
+        Backend backend(paths(dir), &secrets);
+        QVERIFY(again.accept());
+        QTRY_VERIFY(again.seen().contains("hold off"));
+        const qint64 now = QDateTime::currentSecsSinceEpoch();
+        again.say(">LOG:1700000000,I,Initialization Sequence Completed\n" +
+                  QByteArray(">LOG:") + QByteArray::number(now + 5) + ",I,Peer Connection Initiated\n");
+        QTRY_VERIFY(QFileInfo(backend.keptLogPath()).size() > text.toUtf8().size());
+        QVERIFY(kept.open(QIODevice::ReadOnly));
+        const QString after = QString::fromUtf8(kept.readAll());
+        QCOMPARE(after.count("Initialization Sequence Completed"), 1);
+        QVERIFY(after.contains("Peer Connection Initiated"));
+    }
+
     void themeFallsBack()
     {
         QTemporaryDir dir;
@@ -353,6 +435,7 @@ private:
         p.configDir = dir.filePath("config");
         p.dataDir = dir.filePath("data");
         p.runtimeDir = dir.filePath("run");
+        p.stateDir = dir.filePath("state");
         return p;
     }
 

@@ -166,7 +166,9 @@ void Shell::refreshIcon() {
     const QString status = m_backend->status();
     m_tray->setIcon(tunnelIcon(status, QColor(m_theme->accent())));
     const QString name = m_backend->activeName();
-    if (status == "connected")
+    if (status == "connected" && m_backend->stalled())
+        m_tray->setToolTip(tr("OpenVPN: no connection to the server (%1)").arg(name));
+    else if (status == "connected")
         m_tray->setToolTip(tr("OpenVPN: connected to %1").arg(name));
     else if (status == "disconnected")
         m_tray->setToolTip(tr("OpenVPN: disconnected"));
