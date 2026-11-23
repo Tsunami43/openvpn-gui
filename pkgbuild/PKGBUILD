@@ -1,5 +1,5 @@
 pkgname=openvpn-gui
-pkgver=0.5.1
+pkgver=0.5.2
 pkgrel=1
 pkgdesc='Saved OpenVPN profiles, switched on and off from the window or the system tray'
 arch=('x86_64' 'aarch64')
