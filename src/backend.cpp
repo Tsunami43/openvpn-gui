@@ -81,6 +81,19 @@ Backend::Backend(const Paths &paths, SecretStore *secrets, FilePicker *picker, Q
     m_stallTimer.setSingleShot(true);
     connect(&m_stallTimer, &QTimer::timeout, this, [this] { setStalled(true); });
 
+    // OpenVPN reports traffic every two seconds; while it does not (a restart,
+    // a lost socket) the graph gets empty "down" samples, so outages show.
+    m_gapTimer.setInterval(SampleMs + SampleMs / 4);
+    connect(&m_gapTimer, &QTimer::timeout, this, [this] {
+        if (m_status == "disconnected") {
+            m_gapTimer.stop();
+            return;
+        }
+        m_rateIn = m_rateOut = 0;
+        addSample(0, 0, true);
+        emit trafficChanged();
+    });
+
     m_attachRetry.setSingleShot(true);
     m_attachRetry.setInterval(200);
     connect(&m_attachRetry, &QTimer::timeout, this, &Backend::attach);
@@ -417,8 +430,20 @@ void Backend::handleLine(const QString &line) {
                 setStalled(false);
                 m_stallTimer.start(m_stallAfterMs);
             }
+            const qint64 out = counts[1].toLongLong();
+            // Counters that went back mean OpenVPN restarted them: measure
+            // from the new values on.
+            if (m_haveCounts && in >= m_bytesIn && out >= m_bytesOut) {
+                const double seconds = qMax<qint64>(m_sinceCounts.elapsed(), 500) / 1000.0;
+                m_rateIn = (in - m_bytesIn) / seconds;
+                m_rateOut = (out - m_bytesOut) / seconds;
+                addSample(float(m_rateIn), float(m_rateOut), m_status != "connected" || m_stalled);
+            }
+            m_haveCounts = true;
+            m_sinceCounts.start();
+            m_gapTimer.start();
             m_bytesIn = in;
-            m_bytesOut = counts[1].toLongLong();
+            m_bytesOut = out;
             emit trafficChanged();
         }
     } else if (line.startsWith(">PASSWORD:")) {
@@ -507,6 +532,27 @@ void Backend::setStalled(bool stalled) {
     emit statusChanged();
 }
 
+void Backend::addSample(float in, float out, bool down) {
+    m_history[m_historyHead] = {in, out, down};
+    m_historyHead = (m_historyHead + 1) % HistorySize;
+    m_historyCount = qMin(m_historyCount + 1, HistorySize);
+}
+
+QVariantMap Backend::trafficHistory() const {
+    QVariantList in, out, down;
+    in.reserve(m_historyCount);
+    out.reserve(m_historyCount);
+    down.reserve(m_historyCount);
+    const int first = (m_historyHead + HistorySize - m_historyCount) % HistorySize;
+    for (int i = 0; i < m_historyCount; ++i) {
+        const Sample &sample = m_history[(first + i) % HistorySize];
+        in.append(sample.in);
+        out.append(sample.out);
+        down.append(sample.down);
+    }
+    return {{"in", in}, {"out", out}, {"down", down}};
+}
+
 void Backend::keepLog(const QString &entry) {
     // time,flags,message
     const qint64 time = entry.section(',', 0, 0).toLongLong();
@@ -541,6 +587,10 @@ void Backend::resetSession() {
     m_remoteIp.clear();
     m_connectedSince = 0;
     m_bytesIn = m_bytesOut = 0;
+    m_rateIn = m_rateOut = 0;
+    m_haveCounts = false;
+    m_gapTimer.stop();
+    m_historyHead = m_historyCount = 0;
     m_credentialsKind.clear();
     emit credentialsChanged();
     emit trafficChanged();

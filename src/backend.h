@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QLocalSocket>
 #include <QObject>
 #include <QProcess>
@@ -7,6 +8,7 @@
 #include <QTimer>
 #include <QVariantList>
 
+#include <array>
 #include <memory>
 
 #include "profiles.h"
@@ -36,6 +38,11 @@ class Backend : public QObject {
     Q_PROPERTY(bool stalled READ stalled NOTIFY statusChanged)
     Q_PROPERTY(double bytesIn READ bytesIn NOTIFY trafficChanged)
     Q_PROPERTY(double bytesOut READ bytesOut NOTIFY trafficChanged)
+    // Bytes per second, from the two newest traffic reports.
+    Q_PROPERTY(double rateIn READ rateIn NOTIFY trafficChanged)
+    Q_PROPERTY(double rateOut READ rateOut NOTIFY trafficChanged)
+    Q_PROPERTY(int historySize READ historySize CONSTANT)
+    Q_PROPERTY(int sampleMs READ sampleMs CONSTANT)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(QString credentialsKind READ credentialsKind NOTIFY credentialsChanged)
     Q_PROPERTY(QString credentialsUser READ credentialsUser NOTIFY credentialsChanged)
@@ -69,6 +76,17 @@ public:
     bool stalled() const { return m_stalled; }
     double bytesIn() const { return double(m_bytesIn); }
     double bytesOut() const { return double(m_bytesOut); }
+    double rateIn() const { return m_rateIn; }
+    double rateOut() const { return m_rateOut; }
+    // The tunnel's speed over the last ten minutes, oldest first, one sample
+    // every two seconds: {in: [bytes/s], out: [bytes/s], down: [bool]}, where
+    // down marks moments the tunnel was reconnecting or heard nothing from
+    // the server. Read when the graph paints, not on every report.
+    static constexpr int HistorySize = 300;
+    static constexpr int SampleMs = 2000;
+    int historySize() const { return HistorySize; }
+    int sampleMs() const { return SampleMs; }
+    Q_INVOKABLE QVariantMap trafficHistory() const;
     QString error() const { return m_error; }
     // Empty, "Auth" (username and password) or another realm (password only).
     QString credentialsKind() const { return m_credentialsKind; }
@@ -130,6 +148,7 @@ private:
     QString logTail(int lines = 6) const;
     void keepLog(const QString &line);
     void setStalled(bool stalled);
+    void addSample(float in, float out, bool down);
 
     std::unique_ptr<QSettings> m_settings;
     std::unique_ptr<ProfileStore> m_store;
@@ -147,6 +166,17 @@ private:
     int m_stallAfterMs = 20000;
     QTimer m_stallTimer;
     qint64 m_keptLogSince = 0; // log lines older than this are already kept
+
+    struct Sample {
+        float in = 0, out = 0;
+        bool down = false;
+    };
+    std::array<Sample, HistorySize> m_history{};
+    int m_historyHead = 0, m_historyCount = 0;
+    double m_rateIn = 0, m_rateOut = 0;
+    bool m_haveCounts = false;   // a first report to measure the next against
+    QElapsedTimer m_sinceCounts; // since the last traffic report
+    QTimer m_gapTimer;           // no report in time: the graph still moves on
 
     QProcess m_launch;
     QLocalSocket m_socket;

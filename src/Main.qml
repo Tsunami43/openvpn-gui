@@ -61,7 +61,14 @@ ApplicationWindow {
         let index = list.findIndex(p => p.id === backend.selectedId)
         index = Math.max(0, Math.min(list.length - 1, index + step))
         backend.selectedId = list[index].id
-        profileList.positionViewAtIndex(index, ListView.Contain)
+        // Scroll the page just enough to show the chosen card.
+        const card = profileList.itemAtIndex(index)
+        if (!card) return
+        const top = card.mapToItem(content, 0, 0).y + content.y
+        const bottom = top + card.height
+        if (top - 20 < page.contentY) page.contentY = Math.max(0, top - 20)
+        else if (bottom + 20 > page.contentY + page.height)
+            page.contentY = Math.min(page.contentHeight - page.height, bottom + 20 - page.height)
     }
 
     Timer {
@@ -146,280 +153,304 @@ ApplicationWindow {
         LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
         LayoutMirroring.childrenInherit: true
 
-        ColumnLayout {
+        // A short window scrolls the whole page, so the profiles below the
+        // switch stay reachable; a tall one gives the list the spare room.
+        Flickable {
+            id: page
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 14
+            contentWidth: width
+            contentHeight: content.height + 40
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-            // Header: the app and where the tunnel stands, at a glance.
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                Image {
-                    source: "qrc:/icon.svg"
-                    sourceSize: Qt.size(28, 28)
-                    Layout.preferredWidth: 28
-                    Layout.preferredHeight: 28
-                }
-                Label {
-                    text: "OpenVPN GUI"
-                    font.pixelSize: 18
-                    font.weight: Font.DemiBold
-                    color: "#ececf1"
-                }
-                // Which version is running, always in sight.
-                Label {
-                    Layout.alignment: Qt.AlignBaseline
-                    Layout.leftMargin: -4
-                    text: Qt.application.version
-                    font.pixelSize: 12
-                    color: "#5c5c66"
-                }
-                Item { Layout.fillWidth: true }
-                // A newer release on GitHub: said here until pacman installs it.
-                Button {
-                    visible: updater.available
-                    highlighted: true
-                    implicitHeight: 34
-                    font.pixelSize: 12
-                    topInset: 2
-                    bottomInset: 2
-                    text: "↑  " + qsTr("%1 is out").arg(updater.latestVersion)
-                    onClicked: updateInfo.open()
-                }
-                Rectangle {
-                    implicitHeight: 26
-                    implicitWidth: pill.implicitWidth + 26
-                    radius: Math.min(13, Math.max(4, theme.radius))
-                    color: win.up ? Qt.rgba(1, 1, 1, 0.06) : "#16161a"
-                    border.color: win.stalled ? win.warning : win.up ? theme.accent : "#26262c"
-                    Row {
-                        id: pill
-                        anchors.centerIn: parent
-                        spacing: 7
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 8; height: 8; radius: 4
-                            color: win.stalled ? win.warning : win.up ? theme.accent : win.busy ? Qt.darker(theme.accent, 1.3) : "#5c5c66"
-                            SequentialAnimation on opacity {
-                                running: win.busy
-                                loops: Animation.Infinite
-                                NumberAnimation { to: 0.2; duration: 600 }
-                                NumberAnimation { to: 1; duration: 600 }
+            ColumnLayout {
+                id: content
+                x: 20
+                y: 20
+                width: page.width - 40
+                height: Math.max(page.height - 40, implicitHeight)
+                spacing: 14
+
+                // Header: the app and where the tunnel stands, at a glance.
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Image {
+                        source: "qrc:/icon.svg"
+                        sourceSize: Qt.size(28, 28)
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                    }
+                    Label {
+                        text: "OpenVPN GUI"
+                        font.pixelSize: 18
+                        font.weight: Font.DemiBold
+                        color: "#ececf1"
+                    }
+                    // Which version is running, always in sight.
+                    Label {
+                        Layout.alignment: Qt.AlignBaseline
+                        Layout.leftMargin: -4
+                        text: Qt.application.version
+                        font.pixelSize: 12
+                        color: "#5c5c66"
+                    }
+                    Item { Layout.fillWidth: true }
+                    // A newer release on GitHub: said here until pacman installs it.
+                    Button {
+                        visible: updater.available
+                        highlighted: true
+                        implicitHeight: 34
+                        font.pixelSize: 12
+                        topInset: 2
+                        bottomInset: 2
+                        text: "↑  " + qsTr("%1 is out").arg(updater.latestVersion)
+                        onClicked: updateInfo.open()
+                    }
+                    Rectangle {
+                        implicitHeight: 26
+                        implicitWidth: pill.implicitWidth + 26
+                        radius: Math.min(13, Math.max(4, theme.radius))
+                        color: win.up ? Qt.rgba(1, 1, 1, 0.06) : "#16161a"
+                        border.color: win.stalled ? win.warning : win.up ? theme.accent : "#26262c"
+                        Row {
+                            id: pill
+                            anchors.centerIn: parent
+                            spacing: 7
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 8; height: 8; radius: 4
+                                color: win.stalled ? win.warning : win.up ? theme.accent : win.busy ? Qt.darker(theme.accent, 1.3) : "#5c5c66"
+                                SequentialAnimation on opacity {
+                                    running: win.busy
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.2; duration: 600 }
+                                    NumberAnimation { to: 1; duration: 600 }
+                                }
+                            }
+                            Label {
+                                text: win.stalled ? qsTr("No connection") : win.up ? qsTr("Connected") : win.busy ? qsTr("Connecting") : qsTr("Off")
+                                font.pixelSize: 12
+                                color: win.stalled ? win.warning : win.up ? theme.accent : "#a8a8b2"
                             }
                         }
-                        Label {
-                            text: win.stalled ? qsTr("No connection") : win.up ? qsTr("Connected") : win.busy ? qsTr("Connecting") : qsTr("Off")
-                            font.pixelSize: 12
-                            color: win.stalled ? win.warning : win.up ? theme.accent : "#a8a8b2"
-                        }
                     }
                 }
-            }
 
-            // The switch and the numbers of the running tunnel.
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: hero.implicitHeight + 40
-                radius: theme.radius
-                color: "#131317"
-                border.color: "#1f1f25"
-
-                ColumnLayout {
-                    id: hero
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.margins: 18
-                    spacing: 12
-
-                    PowerButton {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 4
-                        status: backend.status
-                        accent: theme.accent
-                        accentForeground: theme.accentForeground
-                        opacity: backend.profiles.length === 0 ? 0.45 : 1
-                        onClicked: backend.toggle()
-                    }
+                // The switch and the numbers of the running tunnel.
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: hero.implicitHeight + 40
+                    radius: theme.radius
+                    color: "#131317"
+                    border.color: "#1f1f25"
 
                     ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        Label {
-                            Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignHCenter
-                            text: win.statusLabel()
-                            font.pixelSize: 20
-                            font.weight: Font.DemiBold
-                            color: win.stalled ? win.warning : win.up ? theme.accent : "#ececf1"
-                            elide: Text.ElideRight
+                        id: hero
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.margins: 18
+                        spacing: 12
+
+                        PowerButton {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 4
+                            status: backend.status
+                            accent: theme.accent
+                            accentForeground: theme.accentForeground
+                            opacity: backend.profiles.length === 0 ? 0.45 : 1
+                            onClicked: backend.toggle()
                         }
-                        Label {
+
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignHCenter
-                            color: "#8b8b96"
-                            font.pixelSize: 13
-                            elide: Text.ElideRight
-                            text: {
-                                translator.language
-                                if (!win.idle) {
-                                    const name = backend.activeName
-                                    return win.up && backend.localIp !== "" ? qsTr("%1 · address %2").arg(name).arg(backend.localIp) : name
+                            spacing: 2
+                            Label {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                text: win.statusLabel()
+                                font.pixelSize: 20
+                                font.weight: Font.DemiBold
+                                color: win.stalled ? win.warning : win.up ? theme.accent : "#ececf1"
+                                elide: Text.ElideRight
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                color: "#8b8b96"
+                                font.pixelSize: 13
+                                elide: Text.ElideRight
+                                text: {
+                                    translator.language
+                                    if (!win.idle) {
+                                        const name = backend.activeName
+                                        return win.up && backend.localIp !== "" ? qsTr("%1 · address %2").arg(name).arg(backend.localIp) : name
+                                    }
+                                    if (backend.profiles.length === 0) return qsTr("Add a profile to get started")
+                                    return win.selected.name ? qsTr("Press Space to connect to %1").arg(win.selected.name) : ""
                                 }
-                                if (backend.profiles.length === 0) return qsTr("Add a profile to get started")
-                                return win.selected.name ? qsTr("Press Space to connect to %1").arg(win.selected.name) : ""
                             }
                         }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 4
+                            spacing: 8
+                            StatTile {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                caption: qsTr("Time")
+                                value: win.up ? win.uptime() : "—"
+                            }
+                            StatTile {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                caption: qsTr("Download")
+                                glyph: "↓"
+                                glyphColor: win.up ? theme.accent : "#5c5c66"
+                                value: win.up ? win.bytes(backend.bytesIn) : "—"
+                            }
+                            StatTile {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                caption: qsTr("Upload")
+                                glyph: "↑"
+                                glyphColor: win.up ? theme.accent : "#5c5c66"
+                                value: win.up ? win.bytes(backend.bytesOut) : "—"
+                            }
+                        }
+
+                        TrafficGraph {
+                            Layout.fillWidth: true
+                            visible: !win.idle
+                            active: win.visible
+                            accent: theme.accent
+                            warning: win.warning
+                            formatRate: n => qsTr("%1/s").arg(win.bytes(n))
+                        }
                     }
+                }
+
+                // Something went wrong: say so in the window, with OpenVPN's words.
+                Rectangle {
+                    Layout.fillWidth: true
+                    visible: backend.error !== ""
+                    implicitHeight: errorRow.implicitHeight + 20
+                    radius: theme.radius
+                    color: "#24131a"
+                    border.color: "#4a2230"
 
                     RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 4
+                        id: errorRow
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 4
+                        anchors.topMargin: 10
+                        anchors.bottomMargin: 10
                         spacing: 8
-                        StatTile {
+                        Label {
                             Layout.fillWidth: true
-                            Layout.preferredWidth: 1
-                            caption: qsTr("Time")
-                            value: win.up ? win.uptime() : "—"
+                            Layout.maximumHeight: 120
+                            text: backend.error
+                            color: "#ffb4b4"
+                            wrapMode: Text.Wrap
+                            elide: Text.ElideRight
+                            font.pixelSize: 12
                         }
-                        StatTile {
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: 1
-                            caption: qsTr("Download")
-                            glyph: "↓"
-                            glyphColor: win.up ? theme.accent : "#5c5c66"
-                            value: win.up ? win.bytes(backend.bytesIn) : "—"
-                        }
-                        StatTile {
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: 1
-                            caption: qsTr("Upload")
-                            glyph: "↑"
-                            glyphColor: win.up ? theme.accent : "#5c5c66"
-                            value: win.up ? win.bytes(backend.bytesOut) : "—"
+                        ToolButton {
+                            Layout.alignment: Qt.AlignTop
+                            text: "✕"
+                            onClicked: backend.clearError()
                         }
                     }
                 }
-            }
-
-            // Something went wrong: say so in the window, with OpenVPN's words.
-            Rectangle {
-                Layout.fillWidth: true
-                visible: backend.error !== ""
-                implicitHeight: errorRow.implicitHeight + 20
-                radius: theme.radius
-                color: "#24131a"
-                border.color: "#4a2230"
 
                 RowLayout {
-                    id: errorRow
-                    anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 4
-                    anchors.topMargin: 10
-                    anchors.bottomMargin: 10
-                    spacing: 8
+                    Layout.fillWidth: true
+                    Layout.topMargin: 2
                     Label {
-                        Layout.fillWidth: true
-                        Layout.maximumHeight: 120
-                        text: backend.error
-                        color: "#ffb4b4"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideRight
+                        text: qsTr("Profiles")
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                        color: "#a8a8b2"
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: 1
+                    }
+                    Label {
+                        text: backend.profiles.length > 0 ? backend.profiles.length.toLocaleString(Qt.locale(), 'f', 0) : ""
                         font.pixelSize: 12
+                        color: "#5c5c66"
                     }
-                    ToolButton {
-                        Layout.alignment: Qt.AlignTop
-                        text: "✕"
-                        onClicked: backend.clearError()
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                Label {
-                    text: qsTr("Profiles")
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    color: "#a8a8b2"
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 1
-                }
-                Label {
-                    text: backend.profiles.length > 0 ? backend.profiles.length.toLocaleString(Qt.locale(), 'f', 0) : ""
-                    font.pixelSize: 12
-                    color: "#5c5c66"
-                }
-                Item { Layout.fillWidth: true }
-                Button {
-                    text: "+  " + qsTr("Add")
-                    flat: true
-                    onClicked: editor.openNew("")
-                }
-            }
-
-            ListView {
-                id: profileList
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                spacing: 8
-                model: backend.profiles
-                boundsBehavior: Flickable.StopAtBounds
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-                delegate: ProfileCard {
-                    width: ListView.view.width
-                    selected: modelData.id === backend.selectedId
-                    state_: modelData.id === backend.activeId && !win.idle ? backend.status : ""
-                    onPicked: backend.selectedId = modelData.id
-                    onToggled: win.toggleProfile(modelData.id)
-                    onEditRequested: editor.openEdit(modelData.id)
-                    onDeleteRequested: confirmDelete.ask(modelData.id)
-                }
-
-                // No profiles yet: show what to do.
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    width: parent.width - 40
-                    visible: profileList.count === 0
-                    spacing: 8
-                    Label {
-                        Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("No profiles yet")
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                        color: "#c8c8d0"
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTr("Add your .ovpn file with its username and password, then connect with one press.")
-                        color: "#7c7c86"
-                        font.pixelSize: 12
-                        wrapMode: Text.WordWrap
-                    }
+                    Item { Layout.fillWidth: true }
                     Button {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 6
-                        text: qsTr("Add profile")
-                        highlighted: true
+                        text: "+  " + qsTr("Add")
+                        flat: true
                         onClicked: editor.openNew("")
                     }
                 }
-            }
 
-            Label {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Space to connect · N new profile · ? shortcuts")
-                color: "#4c4c56"
-                font.pixelSize: 11
-                elide: Text.ElideRight
+                ListView {
+                    id: profileList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    // Every card, always: the page scrolls, not the list.
+                    Layout.preferredHeight: count === 0 ? emptyHint.implicitHeight + 40 : contentHeight
+                    interactive: false
+                    spacing: 8
+                    model: backend.profiles
+
+                    delegate: ProfileCard {
+                        width: ListView.view.width
+                        selected: modelData.id === backend.selectedId
+                        state_: modelData.id === backend.activeId && !win.idle ? backend.status : ""
+                        onPicked: backend.selectedId = modelData.id
+                        onToggled: win.toggleProfile(modelData.id)
+                        onEditRequested: editor.openEdit(modelData.id)
+                        onDeleteRequested: confirmDelete.ask(modelData.id)
+                    }
+
+                    // No profiles yet: show what to do.
+                    ColumnLayout {
+                        id: emptyHint
+                        anchors.centerIn: parent
+                        width: parent.width - 40
+                        visible: profileList.count === 0
+                        spacing: 8
+                        Label {
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr("No profiles yet")
+                            font.pixelSize: 15
+                            font.weight: Font.Medium
+                            color: "#c8c8d0"
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr("Add your .ovpn file with its username and password, then connect with one press.")
+                            color: "#7c7c86"
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
+                        Button {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 6
+                            text: qsTr("Add profile")
+                            highlighted: true
+                            onClicked: editor.openNew("")
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: qsTr("Space to connect · N new profile · ? shortcuts")
+                    color: "#4c4c56"
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
             }
         }
     }

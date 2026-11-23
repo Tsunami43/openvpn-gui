@@ -6,6 +6,7 @@
         <file alias="ProfileCard.qml">ProfileCard.qml</file>
         <file alias="ProfileEditor.qml">ProfileEditor.qml</file>
         <file alias="StatTile.qml">StatTile.qml</file>
+        <file alias="TrafficGraph.qml">TrafficGraph.qml</file>
         <file alias="icon.svg">../pkgbuild/openvpn-gui.svg</file>
     </qresource>
 </RCC>

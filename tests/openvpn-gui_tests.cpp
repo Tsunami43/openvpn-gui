@@ -343,6 +343,51 @@ private slots:
         QVERIFY(!backend.stalled());
     }
 
+    void keepsAShortSpeedHistory()
+    {
+        QTemporaryDir dir;
+        MemoryStore secrets;
+        QDir().mkpath(dir.filePath("run"));
+        FakeOpenvpn openvpn;
+        QVERIFY(openvpn.listen(dir.filePath("run/management.sock")));
+        Backend backend(paths(dir), &secrets);
+        QVERIFY(openvpn.accept());
+        QTRY_VERIFY(openvpn.seen().contains("hold off"));
+
+        openvpn.say(">STATE:1700000000,CONNECTED,SUCCESS,10.8.0.6,203.0.113.5,1194,,\n>BYTECOUNT:1000,100\n");
+        QTRY_COMPARE(backend.bytesIn(), 1000.0);
+        // The first report is only a starting point.
+        QCOMPARE(backend.trafficHistory()["in"].toList().size(), 0);
+        QTest::qWait(500);
+        openvpn.say(">BYTECOUNT:3000,600\n");
+        QTRY_COMPARE(backend.bytesIn(), 3000.0);
+        QVariantMap history = backend.trafficHistory();
+        QCOMPARE(history["in"].toList().size(), 1);
+        QVERIFY(history["in"].toList()[0].toDouble() > 0);
+        QVERIFY(history["out"].toList()[0].toDouble() > 0);
+        QVERIFY(history["in"].toList()[0].toDouble() > history["out"].toList()[0].toDouble());
+        QCOMPARE(history["down"].toList()[0].toBool(), false);
+        QVERIFY(backend.rateIn() > 0);
+
+        // Counters that start over (a restart) give no bogus sample.
+        openvpn.say(">BYTECOUNT:10,10\n");
+        QTRY_COMPARE(backend.bytesIn(), 10.0);
+        QCOMPARE(backend.trafficHistory()["in"].toList().size(), 1);
+
+        // Reports stop while reconnecting: the graph still moves, marked down.
+        openvpn.say(">STATE:1700000100,RECONNECTING,ping-restart,,,,,\n");
+        QTRY_COMPARE(backend.status(), QString("connecting"));
+        QTRY_VERIFY_WITH_TIMEOUT(backend.trafficHistory()["in"].toList().size() >= 2, 4000);
+        history = backend.trafficHistory();
+        QCOMPARE(history["down"].toList().last().toBool(), true);
+        QCOMPARE(history["in"].toList().last().toDouble(), 0.0);
+
+        // A closed tunnel forgets its history.
+        openvpn.peer->disconnectFromServer();
+        QTRY_COMPARE(backend.status(), QString("disconnected"));
+        QCOMPARE(backend.trafficHistory()["in"].toList().size(), 0);
+    }
+
     void keepsTheLogAcrossTunnels()
     {
         QTemporaryDir dir;
